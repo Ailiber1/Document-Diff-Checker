@@ -14,6 +14,10 @@
 <div class="bg-gray-800 rounded-lg p-6 mb-6">
 <div class="flex items-center justify-between mb-4">
 <h2 class="text-xl font-semibold">1. ファイルアップロード</h2>
+<div class="flex gap-2">
+<button id="resetBtn" class="px-4 py-2 bg-red-700 hover:bg-red-600 rounded-lg transition text-sm" title="すべてリセット">
+リセット
+</button>
 <button id="helpBtn" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition" title="使い方を見る">
 <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 <circle cx="12" cy="12" r="10"></circle>
@@ -21,6 +25,7 @@
 <line x1="12" y1="17" x2="12.01" y2="17"></line>
 </svg>
 </button>
+</div>
 </div>
 <div class="mb-4 text-sm text-gray-400">対応形式: .txt, .md, .log, .csv, .docx, .xlsx, .pptx, .pdf</div>
 <div class="grid grid-cols-2 gap-4 mb-4">
@@ -116,7 +121,7 @@
 <div class="overflow-y-auto p-4 flex-1 text-sm space-y-3">
 <div class="bg-gray-700 rounded p-3">
 <div class="font-semibold mb-1">1. ファイルアップロード</div>
-<p class="text-gray-300 text-xs">元と修正版の2つをアップロード (.txt, .md.log, .csv, .docx, .xlsx, .pptx, .pdf)</p>
+<p class="text-gray-300 text-xs">元と修正版の2つをアップロード (.txt, .md)</p>
 </div>
 <div class="bg-gray-700 rounded p-3">
 <div class="font-semibold mb-1">2. 差分を検知</div>
@@ -138,9 +143,25 @@
 <div class="font-semibold mb-1">5. ダウンロード</div>
 <p class="text-gray-300 text-xs">完成版をDL</p>
 </div>
+<div class="bg-red-900 bg-opacity-30 border border-red-700 rounded p-3">
+<div class="font-semibold mb-1 text-red-400">🔄 リセット機能</div>
+<p class="text-gray-300 text-xs mb-1">右上の「リセット」ボタンですべて初期化</p>
+<p class="text-gray-400 text-xs">• ファイルの×ボタンでも結果をクリア</p>
+</div>
 </div>
 <div class="p-4 border-t border-gray-700 flex-shrink-0">
 <button id="helpCloseBtn2" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-lg transition">閉じる</button>
+</div>
+</div>
+</div>
+
+<div id="resetModal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+<div class="bg-gray-800 rounded-lg p-6 max-w-md w-full">
+<h3 class="text-xl font-semibold mb-4">リセット確認</h3>
+<p class="text-gray-300 mb-6">すべてのデータをリセットしますか？<br>アップロードしたファイルと検知結果がすべて削除されます。</p>
+<div class="flex gap-3">
+<button id="resetCancelBtn" class="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">キャンセル</button>
+<button id="resetConfirmBtn" class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg transition">リセット</button>
 </div>
 </div>
 </div>
@@ -248,6 +269,47 @@
         '</label>';
       setupFileInput('file2', 'modified');
     }
+    
+    resetResults();
+  }
+  
+  function resetResults() {
+    state.missingItems = [];
+    state.selectedIds = [];
+    state.mergedResult = '';
+    
+    document.getElementById('statsArea').classList.add('hidden');
+    document.getElementById('missingSection').classList.add('hidden');
+    document.getElementById('diffSection').classList.add('hidden');
+    document.getElementById('mergedSection').classList.add('hidden');
+    document.getElementById('downloadSection').classList.add('hidden');
+  }
+  
+  function resetAll() {
+    state.text1 = '';
+    state.text2 = '';
+    state.file1Name = '';
+    state.file2Name = '';
+    state.missingItems = [];
+    state.selectedIds = [];
+    state.mergedResult = '';
+    
+    document.getElementById('baseFileDisplay').innerHTML = 
+      '<label class="flex items-center justify-center cursor-pointer bg-gray-700 hover:bg-gray-600 rounded p-4">' +
+      '<span>ファイルを選択</span>' +
+      '<input type="file" id="file1" accept=".txt,.md" class="hidden">' +
+      '</label>';
+    
+    document.getElementById('modifiedFileDisplay').innerHTML = 
+      '<label class="flex items-center justify-center cursor-pointer bg-gray-700 hover:bg-gray-600 rounded p-4">' +
+      '<span>ファイルを選択</span>' +
+      '<input type="file" id="file2" accept=".txt,.md" class="hidden">' +
+      '</label>';
+    
+    setupFileInput('file1', 'base');
+    setupFileInput('file2', 'modified');
+    
+    resetResults();
   }
   
   document.getElementById('detectBtn').addEventListener('click', function() {
@@ -510,6 +572,19 @@
     document.getElementById('helpModal').classList.remove('hidden');
   });
   
+  document.getElementById('resetBtn').addEventListener('click', function() {
+    document.getElementById('resetModal').classList.remove('hidden');
+  });
+  
+  document.getElementById('resetCancelBtn').addEventListener('click', function() {
+    document.getElementById('resetModal').classList.add('hidden');
+  });
+  
+  document.getElementById('resetConfirmBtn').addEventListener('click', function() {
+    document.getElementById('resetModal').classList.add('hidden');
+    resetAll();
+  });
+  
   document.getElementById('helpCloseBtn').addEventListener('click', function() {
     document.getElementById('helpModal').classList.add('hidden');
   });
@@ -550,6 +625,10 @@
   });
   
   document.getElementById('helpModal').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.add('hidden');
+  });
+  
+  document.getElementById('resetModal').addEventListener('click', function(e) {
     if (e.target === this) this.classList.add('hidden');
   });
   
