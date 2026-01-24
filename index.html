@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ドキュメント差分チェッカー</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100">
+<div class="min-h-screen p-6">
+<div class="max-w-6xl mx-auto">
+<h1 class="text-3xl font-bold text-center mb-8">ドキュメント差分チェッカー</h1>
+
+<div class="bg-gray-800 rounded-lg p-6 mb-6">
+<div class="flex items-center justify-between mb-4">
+<h2 class="text-xl font-semibold">1. ファイルアップロード</h2>
+<button id="helpBtn" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition" title="使い方を見る">
+<svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="10"></circle>
+<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+<line x1="12" y1="17" x2="12.01" y2="17"></line>
+</svg>
+</button>
+</div>
+<div class="mb-4 text-sm text-gray-400">対応形式: .txt, .md, .log, .csv, .docx, .xlsx, .pptx, .pdf</div>
+<div class="grid grid-cols-2 gap-4 mb-4">
+<div class="border-2 border-dashed border-gray-600 rounded-lg p-4">
+<label class="block mb-2 font-medium">元のドキュメント(ベース)</label>
+<div id="baseFileDisplay">
+<label class="flex items-center justify-center cursor-pointer bg-gray-700 hover:bg-gray-600 rounded p-4">
+<span>ファイルを選択</span>
+<input type="file" id="file1" accept=".txt,.md" class="hidden">
+</label>
+</div>
+</div>
+<div class="border-2 border-dashed border-gray-600 rounded-lg p-4">
+<label class="block mb-2 font-medium">修正版ドキュメント(最新版)</label>
+<div id="modifiedFileDisplay">
+<label class="flex items-center justify-center cursor-pointer bg-gray-700 hover:bg-gray-600 rounded p-4">
+<span>ファイルを選択</span>
+<input type="file" id="file2" accept=".txt,.md" class="hidden">
+</label>
+</div>
+</div>
+</div>
+<button id="detectBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-lg">
+差分を検知
+</button>
+<div id="statsArea" class="hidden mt-4 grid grid-cols-3 gap-4 text-center"></div>
+</div>
+
+<div id="missingSection" class="hidden bg-gray-800 rounded-lg p-6 mb-6">
+<h2 class="text-xl font-semibold mb-4">2. 抜け候補一覧 (<span id="missingCount">0</span>件)</h2>
+<div class="mb-4">
+<button id="selectAllBtn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg mr-2">全選択</button>
+<button id="deselectAllBtn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">全解除</button>
+</div>
+<div id="missingList" class="bg-gray-700 rounded-lg max-h-96 overflow-y-auto"></div>
+<button id="applyBtn" disabled class="mt-4 w-full bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white font-semibold py-3 rounded-lg">
+選択分を反映 (<span id="selectedCount">0</span>件)
+</button>
+</div>
+
+<div id="diffSection" class="hidden bg-gray-800 rounded-lg p-6 mb-6">
+<h2 class="text-xl font-semibold mb-4">3. 差分プレビュー</h2>
+<div id="diffPreview" class="bg-gray-900 rounded-lg p-4 font-mono text-sm max-h-64 overflow-y-auto"></div>
+</div>
+
+<div id="mergedSection" class="hidden bg-gray-800 rounded-lg p-6 mb-6">
+<h2 class="text-xl font-semibold mb-4">4. 反映後プレビュー</h2>
+<div id="mergedPreview" class="bg-gray-900 rounded-lg p-4 font-mono text-sm max-h-96 overflow-y-auto"></div>
+</div>
+
+<div id="downloadSection" class="hidden bg-gray-800 rounded-lg p-6">
+<button id="downloadBtn" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-4 rounded-lg">
+保存(ダウンロード)
+</button>
+</div>
+
+</div>
+</div>
+
+<div id="downloadModal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+<div class="bg-gray-800 rounded-lg p-6 max-w-md w-full">
+<h3 class="text-xl font-semibold mb-4">ファイルをダウンロード</h3>
+<div class="mb-4">
+<label class="block text-sm font-medium mb-2">ファイル名</label>
+<input type="text" id="downloadFileName" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500" placeholder="ファイル名を入力">
+</div>
+<div class="mb-6">
+<label class="block text-sm font-medium mb-2">拡張子</label>
+<select id="downloadExtension" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500">
+<option value="txt">.txt (テキスト)</option>
+<option value="md">.md (Markdown)</option>
+<option value="log">.log (ログ)</option>
+<option value="csv">.csv (CSV)</option>
+<option value="docx" disabled>.docx (Word) ※未対応</option>
+<option value="xlsx" disabled>.xlsx (Excel) ※未対応</option>
+<option value="pptx" disabled>.pptx (PowerPoint) ※未対応</option>
+<option value="pdf" disabled>.pdf (PDF) ※未対応</option>
+</select>
+</div>
+<div class="flex gap-3">
+<button id="downloadCancelBtn" class="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">キャンセル</button>
+<button id="downloadExecuteBtn" class="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition">ダウンロード</button>
+</div>
+</div>
+</div>
+
+<div id="helpModal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+<div class="bg-gray-800 rounded-lg max-w-lg w-full max-h-[85vh] flex flex-col">
+<div class="flex items-center justify-between p-4 border-b border-gray-700 flex-shrink-0">
+<h3 class="text-xl font-bold">使い方ガイド</h3>
+<button id="helpCloseBtn" class="text-gray-400 hover:text-white p-2 hover:bg-gray-700 rounded-full transition text-2xl leading-none">×</button>
+</div>
+<div class="overflow-y-auto p-4 flex-1 text-sm space-y-3">
+<div class="bg-gray-700 rounded p-3">
+<div class="font-semibold mb-1">1. ファイルアップロード</div>
+<p class="text-gray-300 text-xs">元と修正版の2つをアップロード (.txt, .md.log, .csv, .docx, .xlsx, .pptx, .pdf)</p>
+</div>
+<div class="bg-gray-700 rounded p-3">
+<div class="font-semibold mb-1">2. 差分を検知</div>
+<p class="text-gray-300 text-xs">ファイルを比較して統計表示</p>
+</div>
+<div class="bg-gray-700 rounded p-3">
+<div class="font-semibold mb-1">3. 抜け候補を選択</div>
+<p class="text-gray-300 text-xs">復元したい行にチェック</p>
+</div>
+<div class="bg-gray-700 rounded p-3">
+<div class="font-semibold mb-1">4. 反映</div>
+<p class="text-gray-300 text-xs mb-2">選択した行を追加</p>
+<div class="bg-gray-800 rounded p-2 text-xs">
+<div class="text-yellow-400 font-semibold">💡 スマート配置</div>
+<div class="text-gray-300">【見出し】配下の行は同じ見出し下に配置</div>
+</div>
+</div>
+<div class="bg-gray-700 rounded p-3">
+<div class="font-semibold mb-1">5. ダウンロード</div>
+<p class="text-gray-300 text-xs">完成版をDL</p>
+</div>
+</div>
+<div class="p-4 border-t border-gray-700 flex-shrink-0">
+<button id="helpCloseBtn2" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-lg transition">閉じる</button>
+</div>
+</div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  
+  var state = {
+    text1: '',
+    text2: '',
+    file1Name: '',
+    file2Name: '',
+    missingItems: [],
+    selectedIds: [],
+    mergedResult: ''
+  };
+  
+  function escapeHTML(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+  
+  function trimWhitespace(str) {
+    return str.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, '');
+  }
+  
+  function removeAllWhitespace(str) {
+    return str.replace(/[\s\uFEFF\xA0]/g, '');
+  }
+  
+  function isItemSelected(id) {
+    return state.selectedIds.indexOf(id) !== -1;
+  }
+  
+  function showElement(id) {
+    var elem = document.getElementById(id);
+    if (elem) elem.classList.remove('hidden');
+  }
+  
+  function setupFileInput(inputId, type) {
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    
+    input.addEventListener('change', function(e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      
+      if (type === 'base') {
+        state.file1Name = file.name;
+      } else {
+        state.file2Name = file.name;
+      }
+      
+      var reader = new FileReader();
+      reader.onload = function(event) {
+        if (type === 'base') {
+          state.text1 = event.target.result;
+        } else {
+          state.text2 = event.target.result;
+        }
+        updateFileDisplay(type, file.name);
+      };
+      reader.readAsText(file);
+    });
+  }
+  
+  setupFileInput('file1', 'base');
+  setupFileInput('file2', 'modified');
+  
+  function updateFileDisplay(type, fileName) {
+    var displayId = type === 'base' ? 'baseFileDisplay' : 'modifiedFileDisplay';
+    var html = '<div class="flex items-center justify-between bg-gray-700 rounded p-3">';
+    html += '<span class="truncate text-sm">' + escapeHTML(fileName) + '</span>';
+    html += '<button class="ml-2 text-red-400 hover:text-red-300 text-xl clear-file-btn" data-type="' + type + '">×</button>';
+    html += '</div>';
+    document.getElementById(displayId).innerHTML = html;
+    
+    var clearBtn = document.querySelector('[data-type="' + type + '"]');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function() {
+        clearFile(type);
+      });
+    }
+  }
+  
+  function clearFile(type) {
+    if (type === 'base') {
+      state.text1 = '';
+      state.file1Name = '';
+      document.getElementById('baseFileDisplay').innerHTML = 
+        '<label class="flex items-center justify-center cursor-pointer bg-gray-700 hover:bg-gray-600 rounded p-4">' +
+        '<span>ファイルを選択</span>' +
+        '<input type="file" id="file1" accept=".txt,.md" class="hidden">' +
+        '</label>';
+      setupFileInput('file1', 'base');
+    } else {
+      state.text2 = '';
+      state.file2Name = '';
+      document.getElementById('modifiedFileDisplay').innerHTML = 
+        '<label class="flex items-center justify-center cursor-pointer bg-gray-700 hover:bg-gray-600 rounded p-4">' +
+        '<span>ファイルを選択</span>' +
+        '<input type="file" id="file2" accept=".txt,.md" class="hidden">' +
+        '</label>';
+      setupFileInput('file2', 'modified');
+    }
+  }
+  
+  document.getElementById('detectBtn').addEventListener('click', function() {
+    if (!state.text1 || !state.text2) {
+      alert('両方のファイルを選択してください');
+      return;
+    }
+    
+    var lines1 = state.text1.split('\n');
+    var lines2 = state.text2.split('\n');
+    
+    var map2 = {};
+    for (var i = 0; i < lines2.length; i++) {
+      map2[lines2[i]] = true;
+    }
+    
+    var map1 = {};
+    for (var j = 0; j < lines1.length; j++) {
+      map1[lines1[j]] = true;
+    }
+    
+    state.missingItems = [];
+    for (var k = 0; k < lines1.length; k++) {
+      var line = lines1[k];
+      var trimmed = removeAllWhitespace(line);
+      if (!map2[line] && trimmed.length > 0) {
+        state.missingItems.push({id: k, text: line});
+      }
+    }
+    
+    var sameCount = 0;
+    for (var m = 0; m < lines1.length; m++) {
+      if (map2[lines1[m]]) sameCount++;
+    }
+    
+    var addedCount = 0;
+    for (var n = 0; n < lines2.length; n++) {
+      var trimmed2 = removeAllWhitespace(lines2[n]);
+      if (!map1[lines2[n]] && trimmed2.length > 0) addedCount++;
+    }
+    
+    var statsHTML = '<div class="bg-gray-700 rounded p-3"><div class="text-2xl font-bold text-green-400">' + sameCount + '</div><div class="text-sm text-gray-400">同一行数</div></div>';
+    statsHTML += '<div class="bg-gray-700 rounded p-3"><div class="text-2xl font-bold text-blue-400">' + addedCount + '</div><div class="text-sm text-gray-400">追加行数</div></div>';
+    statsHTML += '<div class="bg-gray-700 rounded p-3"><div class="text-2xl font-bold text-red-400">' + state.missingItems.length + '</div><div class="text-sm text-gray-400">削除行数</div></div>';
+    
+    document.getElementById('statsArea').innerHTML = statsHTML;
+    showElement('statsArea');
+    showElement('missingSection');
+    showElement('diffSection');
+    showElement('downloadSection');
+    
+    renderMissingList();
+    renderDiffPreview();
+  });
+  
+  function renderMissingList() {
+    document.getElementById('missingCount').textContent = state.missingItems.length;
+    
+    var html = '';
+    for (var i = 0; i < state.missingItems.length; i++) {
+      var item = state.missingItems[i];
+      var checkbox = isItemSelected(item.id) ? '☑' : '☐';
+      html += '<div class="flex gap-2 p-2 border-b border-gray-600 hover:bg-gray-600 cursor-pointer item-row" data-item-id="' + item.id + '">';
+      html += '<div class="text-lg">' + checkbox + '</div>';
+      html += '<div class="flex-1 text-sm"><span class="text-gray-400">#' + item.id + '</span> ' + escapeHTML(item.text) + '</div></div>';
+    }
+    
+    if (state.missingItems.length === 0) {
+      html = '<div class="p-8 text-center text-gray-400">抜け候補はありません</div>';
+    }
+    
+    document.getElementById('missingList').innerHTML = html;
+    document.getElementById('selectedCount').textContent = state.selectedIds.length;
+    document.getElementById('applyBtn').disabled = (state.selectedIds.length === 0);
+    
+    var items = document.querySelectorAll('.item-row');
+    for (var i = 0; i < items.length; i++) {
+      items[i].addEventListener('click', function() {
+        toggleSelection(parseInt(this.getAttribute('data-item-id'), 10));
+      });
+    }
+  }
+  
+  function toggleSelection(id) {
+    var index = state.selectedIds.indexOf(id);
+    if (index !== -1) {
+      state.selectedIds.splice(index, 1);
+    } else {
+      state.selectedIds.push(id);
+    }
+    renderMissingList();
+    renderDiffPreview();
+  }
+  
+  document.getElementById('selectAllBtn').addEventListener('click', function() {
+    state.selectedIds = [];
+    for (var i = 0; i < state.missingItems.length; i++) {
+      state.selectedIds.push(state.missingItems[i].id);
+    }
+    renderMissingList();
+    renderDiffPreview();
+  });
+  
+  document.getElementById('deselectAllBtn').addEventListener('click', function() {
+    state.selectedIds = [];
+    renderMissingList();
+    renderDiffPreview();
+  });
+  
+  function renderDiffPreview() {
+    var html = '';
+    var limit = Math.min(20, state.missingItems.length);
+    
+    for (var i = 0; i < limit; i++) {
+      var item = state.missingItems[i];
+      var selected = isItemSelected(item.id);
+      var colorClass = selected ? 'text-green-400' : 'text-red-400';
+      var prefix = selected ? '+ ' : '- ';
+      html += '<div class="' + colorClass + '">' + prefix + escapeHTML(item.text) + '</div>';
+    }
+    
+    if (state.missingItems.length > 20) {
+      html += '<div class="text-gray-500 mt-2">... 他 ' + (state.missingItems.length - 20) + ' 行</div>';
+    }
+    
+    document.getElementById('diffPreview').innerHTML = html;
+  }
+  
+  document.getElementById('applyBtn').addEventListener('click', function() {
+    var itemsToAdd = [];
+    for (var i = 0; i < state.missingItems.length; i++) {
+      if (isItemSelected(state.missingItems[i].id)) {
+        itemsToAdd.push(state.missingItems[i]);
+      }
+    }
+    
+    if (itemsToAdd.length === 0) return;
+    
+    var lines1 = state.text1.split('\n');
+    var lines2 = state.text2.split('\n');
+    
+    function isHeading(str) {
+      var trimmed = trimWhitespace(str);
+      return trimmed.length > 0 && trimmed.charAt(0) === '【' && trimmed.indexOf('】') > 0;
+    }
+    
+    var headingMap = [];
+    var currentHeading = null;
+    for (var i = 0; i < lines1.length; i++) {
+      if (isHeading(lines1[i])) {
+        currentHeading = trimWhitespace(lines1[i]);
+      }
+      headingMap[i] = currentHeading;
+    }
+    
+    var headingPositions = {};
+    for (var j = 0; j < lines2.length; j++) {
+      if (isHeading(lines2[j])) {
+        var heading = trimWhitespace(lines2[j]);
+        if (!headingPositions[heading]) {
+          headingPositions[heading] = [];
+        }
+        headingPositions[heading].push(j);
+      }
+    }
+    
+    var groups = {};
+    var orphans = [];
+    
+    for (var k = 0; k < itemsToAdd.length; k++) {
+      var item = itemsToAdd[k];
+      var hd = headingMap[item.id];
+      if (hd && headingPositions[hd]) {
+        if (!groups[hd]) groups[hd] = [];
+        groups[hd].push(item.text);
+      } else {
+        orphans.push(item.text);
+      }
+    }
+    
+    var result = lines2.slice();
+    var offset = 0;
+    
+    for (var key in groups) {
+      if (groups.hasOwnProperty(key)) {
+        var linesToInsert = groups[key];
+        var positions = headingPositions[key];
+        if (positions && positions.length > 0) {
+          var lastPosition = positions[positions.length - 1];
+          var insertPosition = lastPosition + 1 + offset;
+          
+          for (var x = lastPosition + 1; x < lines2.length; x++) {
+            if (isHeading(lines2[x])) {
+              insertPosition = x + offset;
+              break;
+            }
+            if (x === lines2.length - 1) {
+              insertPosition = x + 1 + offset;
+            }
+          }
+          
+          for (var y = 0; y < linesToInsert.length; y++) {
+            result.splice(insertPosition + y, 0, linesToInsert[y]);
+          }
+          offset += linesToInsert.length;
+        }
+      }
+    }
+    
+    if (orphans.length > 0) {
+      result.push('', '---', '[Auto-Appended Missing Blocks]', '');
+      for (var z = 0; z < orphans.length; z++) {
+        result.push(orphans[z]);
+      }
+    }
+    
+    state.mergedResult = result.join('\n');
+    renderMergedPreview();
+    showElement('mergedSection');
+  });
+  
+  function renderMergedPreview() {
+    var lines = state.mergedResult.split('\n');
+    var html = '';
+    
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var trimmed = trimWhitespace(line);
+      var isHd = trimmed.length > 0 && trimmed.charAt(0) === '【' && trimmed.indexOf('】') > 0;
+      var isMarker = line === '---' || line === '[Auto-Appended Missing Blocks]';
+      var isAdded = false;
+      
+      for (var j = 0; j < state.missingItems.length; j++) {
+        if (isItemSelected(state.missingItems[j].id) && state.missingItems[j].text === line) {
+          isAdded = true;
+          break;
+        }
+      }
+      
+      if (isMarker) {
+        html += '<div class="text-yellow-400 border-t border-yellow-600 mt-2 pt-2">' + escapeHTML(line) + '</div>';
+      } else if (isAdded) {
+        html += '<div class="bg-green-900 bg-opacity-30 text-green-300 border-l-2 border-green-500 pl-2">' + escapeHTML(line) + '</div>';
+      } else if (isHd) {
+        html += '<div class="text-blue-400 font-bold mt-2">' + escapeHTML(line) + '</div>';
+      } else {
+        html += '<div class="text-gray-300">' + escapeHTML(line) + '</div>';
+      }
+    }
+    
+    document.getElementById('mergedPreview').innerHTML = html;
+  }
+  
+  document.getElementById('downloadBtn').addEventListener('click', function() {
+    document.getElementById('downloadModal').classList.remove('hidden');
+    document.getElementById('downloadFileName').value = '完成版ドキュメント';
+  });
+  
+  document.getElementById('helpBtn').addEventListener('click', function() {
+    document.getElementById('helpModal').classList.remove('hidden');
+  });
+  
+  document.getElementById('helpCloseBtn').addEventListener('click', function() {
+    document.getElementById('helpModal').classList.add('hidden');
+  });
+  
+  document.getElementById('helpCloseBtn2').addEventListener('click', function() {
+    document.getElementById('helpModal').classList.add('hidden');
+  });
+  
+  document.getElementById('downloadCancelBtn').addEventListener('click', function() {
+    document.getElementById('downloadModal').classList.add('hidden');
+  });
+  
+  document.getElementById('downloadExecuteBtn').addEventListener('click', function() {
+    var fileName = document.getElementById('downloadFileName').value || '完成版ドキュメント';
+    var extension = document.getElementById('downloadExtension').value;
+    var textContent = state.mergedResult || state.text2;
+    
+    if (extension === 'docx' || extension === 'xlsx' || extension === 'pptx' || extension === 'pdf') {
+      alert('この形式は現在未対応です。\nテキスト形式(.txt)での保存をお勧めします。');
+      return;
+    }
+    
+    var blob = new Blob([textContent], {type: 'text/plain;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = fileName + '.' + extension;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    document.getElementById('downloadModal').classList.add('hidden');
+  });
+  
+  document.getElementById('downloadModal').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.add('hidden');
+  });
+  
+  document.getElementById('helpModal').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.add('hidden');
+  });
+  
+})();
+</script>
+
+</body>
+</html>
