@@ -1,0 +1,22 @@
+# 環境変数（秘密鍵）
+.env
+.env.local
+.env.production
+
+# 依存パッケージ
+node_modules/
+
+# OS生成ファイル
+.DS_Store
+Thumbs.db
+
+# Firebase
+.firebase/
+
+# ビルド出力
+dist/
+build/
+
+# ログ
+*.log
+npm-debug.log*
